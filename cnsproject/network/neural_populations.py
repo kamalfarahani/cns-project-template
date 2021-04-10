@@ -5,7 +5,7 @@ Module for neuronal dynamics and populations.
 from functools import reduce
 from abc import abstractmethod
 from operator import mul
-from typing import Union, Iterable
+from typing import Union, Iterable, Callable
 
 import torch
 
@@ -310,6 +310,12 @@ class LIFPopulation(NeuralPopulation):
         trace_scale: Union[float, torch.Tensor] = 1.,
         is_inhibitory: bool = False,
         learning: bool = True,
+        tau: float = 10,
+        resistance: float = 5.0,
+        threshold: float = -50.0,
+        current: Callable[[float], float] = lambda t: 0.0,
+        rest_potential: float = -70.0,
+        dt: float = 0.001,
         **kwargs
     ) -> None:
         super().__init__(
@@ -322,61 +328,48 @@ class LIFPopulation(NeuralPopulation):
             learning=learning,
         )
 
-        """
-        TODO.
+        self.tau = tau
+        self.threshold = threshold
+        self.current = current
+        self.rest_potential = rest_potential
+        self.resistance = resistance
+        self.dt = dt
+        self._potential = rest_potential
+        self.step = 0
+        self.spike_times = []
 
-        1. Add the required parameters.
-        2. Fill the body accordingly.
-        """
+    @property
+    def potential(self) -> float:
+        return self._potential
 
     def forward(self, traces: torch.Tensor) -> None:
-        """
-        TODO.
+        new_potential = self.compute_potential()
+        self._potential = new_potential
+        if self.compute_spike():
+            self.refractory_and_reset()
+            self.spike_times.append(self.dt * self.step)
 
-        1. Make use of other methods to fill the body. This is the main method\
-           responsible for one step of neuron simulation.
-        2. You might need to call the method from parent class.
-        """
-        pass
+        self.step += 1
 
-    def compute_potential(self) -> None:
-        """
-        TODO.
+    def compute_potential(self) -> float:
+        t = self.step * self.dt
+        u = self.potential
+        u_rest = self.rest_potential
+        r = self.resistance
+        I = self.current
+        dt = self.dt
+        tau = self.tau
 
-        Implement the neural dynamics for computing the potential of LIF\
-        neurons. The method can either make changes to attributes directly or\
-        return the result for further use.
-        """
-        pass
+        du = ((-(u - u_rest) + r * I(t)) * dt) / tau
+        return u + du
 
-    def compute_spike(self) -> None:
-        """
-        TODO.
+    def compute_spike(self) -> bool:
+        return self.potential > self.threshold
 
-        Implement the spike condition. The method can either make changes to\
-        attributes directly or return the result for further use.
-        """
-        pass
-
-    @abstractmethod
     def refractory_and_reset(self) -> None:
-        """
-        TODO.
+        self._potential = self.rest_potential
 
-        Implement the refractory and reset conditions. The method can either\
-        make changes to attributes directly or return the computed value for\
-        further use.
-        """
-        pass
-
-    @abstractmethod
     def compute_decay(self) -> None:
-        """
-        TODO.
-
-        Implement the dynamics of decays. You might need to call the method from
-        parent class.
-        """
         pass
 
 
