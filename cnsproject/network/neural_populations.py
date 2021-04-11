@@ -520,9 +520,7 @@ class AELIFPopulation(ELIFPopulation):
         w = self.adaptation
         a = self.subthreshold_adaptation
         b = self.spike_trigger_adaptation
+        is_spiked = int(super().compute_spike())
 
-        dw = ((a * (u - u_rest) - w) * dt) / tau_w
-        if super().compute_spike():
-            self.adaptation = w + dw + b
-        else:
-            self.adaptation = w + dw
+        dw = (((a * (u - u_rest) - w) * dt) / tau_w) + (b * is_spiked)
+        self.adaptation = w + dw
