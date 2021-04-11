@@ -7,7 +7,7 @@ from typing import List, Callable
 from ..network.neural_populations import LIFPopulation
 
 
-def plot_lif(lif: LIFPopulation, potentials: List[float]):
+def plot_neuron_potential(lif: LIFPopulation, potentials: List[float]) -> None:
     steps = len(potentials)
     potential_times = [i * lif.dt for i in range(steps)]
     plt.plot(potential_times, potentials, c='g')
@@ -23,7 +23,7 @@ def plot_lif(lif: LIFPopulation, potentials: List[float]):
     plt.show()
 
 
-def plot_current(current: Callable[[float], float], steps: int, dt: float):
+def plot_current(current: Callable[[float], float], steps: int, dt: float) -> None:
     times = [dt * i for i in range(steps)]
     current_values = [current(dt * i) for i in range(steps)]
     plt.plot(times, current_values)
@@ -32,7 +32,7 @@ def plot_current(current: Callable[[float], float], steps: int, dt: float):
     plt.show()
 
 
-def plot_FI_for_lif(lif: LIFPopulation, simulation_seconds=5, current_range=50):
+def plot_FI_for_neuron(lif: LIFPopulation, simulation_seconds=5, current_range=50) -> None:
     freqs = []
     steps = int(simulation_seconds / lif.dt)
     for i in range(current_range):
