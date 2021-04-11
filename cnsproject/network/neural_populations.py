@@ -441,7 +441,7 @@ class ELIFPopulation(LIFPopulation):
         return u + du
 
 
-class AELIFPopulation(NeuralPopulation):
+class AELIFPopulation(ELIFPopulation):
     """
     Layer of Adaptive Exponential Leaky Integrate and Fire neurons.
 
@@ -461,6 +461,17 @@ class AELIFPopulation(NeuralPopulation):
         trace_scale: Union[float, torch.Tensor] = 1.,
         is_inhibitory: bool = False,
         learning: bool = True,
+        tau: float = 10,
+        resistance: float = 5.0,
+        threshold: float = -50.0,
+        current: Callable[[float], float] = lambda t: 0.0,
+        rest_potential: float = -70.0,
+        dt: float = 0.001,
+        sharpness: float = 1.0,
+        theta_rh:float = -60,
+        tau_adaptation: float = 1,
+        subthreshold_adaptation: float = 0.001,
+        spike_trigger_adaptation: float = 0.0002,
         **kwargs
     ) -> None:
         super().__init__(
@@ -471,61 +482,53 @@ class AELIFPopulation(NeuralPopulation):
             trace_scale=trace_scale,
             is_inhibitory=is_inhibitory,
             learning=learning,
+            tau=tau,
+            resistance=resistance,
+            threshold=threshold,
+            current=current,
+            rest_potential=rest_potential,
+            dt=dt,
+            sharpness=sharpness,
+            theta_rh=theta_rh
         )
 
-        """
-        TODO.
+        self.tau_adaptation = tau_adaptation
+        self.subthreshold_adaptation = subthreshold_adaptation
+        self.spike_trigger_adaptation = spike_trigger_adaptation
+        self.adaptation = 0
 
-        1. Add the required parameters.
-        2. Fill the body accordingly.
-        """
+    def compute_potential(self) -> float:
+        t = self.step * self.dt
+        u = self.potential
+        u_rest = self.rest_potential
+        r = self.resistance
+        I = self.current
+        dt = self.dt
+        tau = self.tau
+        sharpness = self.sharpness
+        theta_rh = self.theta_rh
 
-    def forward(self, traces: torch.Tensor) -> None:
-        """
-        TODO.
+        du = ((
+                -(u - u_rest) +
+                sharpness * exp((u - theta_rh) / sharpness) +
+                r * I(t)) / tau) * dt
 
-        1. Make use of other methods to fill the body. This is the main method\
-           responsible for one step of neuron simulation.
-        2. You might need to call the method from parent class.
-        """
-        pass
+        self._potential = (u + du - r * self.adaptation)
+        self.compute_adaptation()
 
-    def compute_potential(self) -> None:
-        """
-        TODO.
+        return self._potential
+    
+    def compute_adaptation(self) -> float:
+        u = self.potential
+        u_rest = self.rest_potential
+        dt = self.dt
+        tau_w = self.tau_adaptation
+        w = self.adaptation
+        a = self.subthreshold_adaptation
+        b = self.spike_trigger_adaptation
 
-        Implement the neural dynamics for computing the potential of adaptive\
-        ELIF neurons. The method can either make changes to attributes directly\
-        or return the result for further use.
-        """
-        pass
-
-    def compute_spike(self) -> None:
-        """
-        TODO.
-
-        Implement the spike condition. The method can either make changes to\
-        attributes directly or return the result for further use.
-        """
-        pass
-
-    @abstractmethod
-    def refractory_and_reset(self) -> None:
-        """
-        TODO.
-
-        Implement the refractory and reset conditions. The method can either\
-        make changes to attributes directly or return the computed value for\
-        further use.
-        """
-        pass
-
-    @abstractmethod
-    def compute_decay(self) -> None:
-        """
-        TODO.
-
-        Implement the dynamics of decays. You might need to call the method from
-        parent class.
-        """
-        pass
+        dw = ((a * (u - u_rest) - w) * dt) / tau_w
+        if super().compute_spike():
+            self.adaptation = w + dw + b
+        else:
+            self.adaptation = w + dw
