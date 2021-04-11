@@ -344,15 +344,14 @@ class LIFPopulation(NeuralPopulation):
         return self._potential
 
     def forward(self, traces: torch.Tensor) -> None:
-        new_potential = self.compute_potential()
-        self._potential = new_potential
+        self.compute_potential()
         if self.compute_spike():
             self.refractory_and_reset()
             self.spike_times.append(self.dt * self.step)
 
         self.step += 1
 
-    def compute_potential(self) -> float:
+    def compute_potential(self) -> None:
         t = self.step * self.dt
         u = self.potential
         u_rest = self.rest_potential
@@ -362,16 +361,13 @@ class LIFPopulation(NeuralPopulation):
         tau = self.tau
 
         du = ((-(u - u_rest) + r * I(t)) * dt) / tau
-        return u + du
+        self._potential = u + du
 
     def compute_spike(self) -> bool:
         return self.potential > self.threshold
 
     def refractory_and_reset(self) -> None:
         self._potential = self.rest_potential
-
-    def compute_decay(self) -> None:
-        pass
 
 
 class ELIFPopulation(LIFPopulation):
@@ -422,7 +418,7 @@ class ELIFPopulation(LIFPopulation):
         self.sharpness = sharpness
         self.theta_rh = theta_rh
 
-    def compute_potential(self) -> float:
+    def compute_potential(self) -> None:
         t = self.step * self.dt
         u = self.potential
         u_rest = self.rest_potential
@@ -438,7 +434,7 @@ class ELIFPopulation(LIFPopulation):
                 sharpness * exp((u - theta_rh) / sharpness) +
                 r * I(t)) / tau) * dt
 
-        return u + du
+        self._potential = u + du
 
 
 class AELIFPopulation(ELIFPopulation):
@@ -497,7 +493,7 @@ class AELIFPopulation(ELIFPopulation):
         self.spike_trigger_adaptation = spike_trigger_adaptation
         self.adaptation = 0
 
-    def compute_potential(self) -> float:
+    def compute_potential(self) -> None:
         t = self.step * self.dt
         u = self.potential
         u_rest = self.rest_potential
@@ -515,10 +511,8 @@ class AELIFPopulation(ELIFPopulation):
 
         self._potential = (u + du - r * self.adaptation)
         self.compute_adaptation()
-
-        return self._potential
     
-    def compute_adaptation(self) -> float:
+    def compute_adaptation(self) -> None:
         u = self.potential
         u_rest = self.rest_potential
         dt = self.dt
