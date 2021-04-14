@@ -49,3 +49,10 @@ def plot_FI_for_neuron(lif: LIFPopulation, simulation_seconds=5, current_range=5
     plt.xlabel('I(t)')
     plt.ylabel('Frequency')
     plt.show()
+
+def plot_adaptation(adaptations: List[float], dt):
+    times = [dt * i for i in range(len(adaptations))]
+    plt.plot(times, adaptations, c='r')
+    plt.xlabel('time')
+    plt.ylabel('adaptation value')
+    plt.show()
