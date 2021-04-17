@@ -329,15 +329,14 @@ class LIFPopulation(NeuralPopulation):
             learning=learning,
         )
 
-        self.tau = tau
-        self.threshold = threshold
-        self.current = current
-        self.rest_potential = rest_potential
-        self.resistance = resistance
+        self.register_buffer('tau', torch.tensor(tau))
+        self.register_buffer('threshold', torch.tensor(threshold))
+        self.register_buffer('rest_potential', torch.tensor(rest_potential))
+        self.register_buffer('resistance', torch.tensor(resistance))
+        self.register_buffer('_potential', torch.zeros(self.shape) + self.rest_potential)
         self.dt = dt
-        self._potential = rest_potential
+        self.current = current
         self.step = 0
-        self.spike_times = []
 
     @property
     def potential(self) -> float:
@@ -345,11 +344,10 @@ class LIFPopulation(NeuralPopulation):
 
     def forward(self, traces: torch.Tensor) -> None:
         self.compute_potential()
-        if self.compute_spike():
-            self.refractory_and_reset()
-            self.spike_times.append(self.dt * self.step)
-
-        self.step += 1
+        self.s = self.compute_spike()
+        self._potential = ~self.s * self._potential + self.s * self.rest_potential
+        self.step = self.step + 1
+        super().forward(traces)
 
     def compute_potential(self) -> None:
         t = self.step * self.dt
@@ -367,7 +365,9 @@ class LIFPopulation(NeuralPopulation):
         return self.potential > self.threshold
 
     def refractory_and_reset(self) -> None:
-        self._potential = self.rest_potential
+        self._potential = torch.zeros(self.shape) + self.rest_potential
+        self.s = torch.zeros(*self.shape, dtype=torch.bool)
+        self.step = 0
 
 
 class ELIFPopulation(LIFPopulation):
