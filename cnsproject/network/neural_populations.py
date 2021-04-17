@@ -3,7 +3,7 @@ Module for neuronal dynamics and populations.
 """
 
 from functools import reduce
-from math import exp
+from torch import exp
 from abc import abstractmethod
 from operator import mul
 from typing import Union, Iterable, Callable
