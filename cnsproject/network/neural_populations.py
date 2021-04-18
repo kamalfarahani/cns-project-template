@@ -415,8 +415,8 @@ class ELIFPopulation(LIFPopulation):
             dt=dt
         )
 
-        self.sharpness = sharpness
-        self.theta_rh = theta_rh
+        self.register_buffer('sharpness', torch.tensor(sharpness))
+        self.register_buffer('theta_rh', torch.tensor(theta_rh))
 
     def compute_potential(self) -> None:
         t = self.step * self.dt
