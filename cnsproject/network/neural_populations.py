@@ -488,10 +488,10 @@ class AELIFPopulation(ELIFPopulation):
             theta_rh=theta_rh
         )
 
-        self.tau_adaptation = tau_adaptation
-        self.subthreshold_adaptation = subthreshold_adaptation
-        self.spike_trigger_adaptation = spike_trigger_adaptation
-        self.adaptation = 0
+        self.register_buffer('tau_adaptation', torch.tensor(tau_adaptation))
+        self.register_buffer('subthreshold_adaptation', torch.tensor(subthreshold_adaptation))
+        self.register_buffer('spike_trigger_adaptation', torch.tensor(spike_trigger_adaptation))
+        self.register_buffer('adaptation', torch.zeros(self.shape))
 
     def compute_potential(self) -> None:
         t = self.step * self.dt
@@ -520,7 +520,11 @@ class AELIFPopulation(ELIFPopulation):
         w = self.adaptation
         a = self.subthreshold_adaptation
         b = self.spike_trigger_adaptation
-        is_spiked = int(super().compute_spike())
+        is_spiked = super().compute_spike()
 
         dw = (((a * (u - u_rest) - w) * dt) / tau_w) + (b * is_spiked)
         self.adaptation = w + dw
+
+    def refractory_and_reset(self) -> None:
+        super().refractory_and_reset()
+        self.adaptation = torch.zeros(self.shape)
