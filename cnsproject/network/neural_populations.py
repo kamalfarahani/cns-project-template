@@ -415,12 +415,12 @@ class ELIFPopulation(LIFPopulation):
         self.register_buffer('sharpness', torch.tensor(sharpness))
         self.register_buffer('theta_rh', torch.tensor(theta_rh))
 
-    def compute_potential(self) -> None:
+    def compute_potential(self, current) -> None:
         t = self.step * self.dt
         u = self.potential
         u_rest = self.rest_potential
         r = self.resistance
-        I = self.current
+        I = current
         dt = self.dt
         tau = self.tau
         sharpness = self.sharpness
@@ -429,7 +429,7 @@ class ELIFPopulation(LIFPopulation):
         du = ((
                 -(u - u_rest) +
                 sharpness * exp((u - theta_rh) / sharpness) +
-                r * I(t)) / tau) * dt
+                r * I) / tau) * dt
 
         self._potential = u + du
 
