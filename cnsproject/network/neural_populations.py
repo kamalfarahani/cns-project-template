@@ -416,7 +416,6 @@ class ELIFPopulation(LIFPopulation):
         self.register_buffer('theta_rh', torch.tensor(theta_rh))
 
     def compute_potential(self, current) -> None:
-        t = self.step * self.dt
         u = self.potential
         u_rest = self.rest_potential
         r = self.resistance
@@ -490,12 +489,11 @@ class AELIFPopulation(ELIFPopulation):
         self.register_buffer('spike_trigger_adaptation', torch.tensor(spike_trigger_adaptation))
         self.register_buffer('adaptation', torch.zeros(self.shape))
 
-    def compute_potential(self) -> None:
-        t = self.step * self.dt
+    def compute_potential(self, current) -> None:
         u = self.potential
         u_rest = self.rest_potential
         r = self.resistance
-        I = self.current
+        I = current
         dt = self.dt
         tau = self.tau
         sharpness = self.sharpness
@@ -504,7 +502,7 @@ class AELIFPopulation(ELIFPopulation):
         du = ((
                 -(u - u_rest) +
                 sharpness * exp((u - theta_rh) / sharpness) +
-                r * I(t)) / tau) * dt
+                r * I) / tau) * dt
 
         self._potential = (u + du - r * self.adaptation)
         self.compute_adaptation()
