@@ -314,7 +314,6 @@ class LIFPopulation(NeuralPopulation):
         tau: float = 10,
         resistance: float = 5.0,
         threshold: float = -50.0,
-        current: Callable[[float], float] = lambda t: 0.0,
         rest_potential: float = -70.0,
         dt: float = 0.001,
         **kwargs
@@ -335,7 +334,6 @@ class LIFPopulation(NeuralPopulation):
         self.register_buffer('resistance', torch.tensor(resistance))
         self.register_buffer('_potential', torch.zeros(self.shape) + self.rest_potential)
         self.dt = dt
-        self.current = current
         self.step = 0
 
     @property
@@ -343,22 +341,21 @@ class LIFPopulation(NeuralPopulation):
         return self._potential
 
     def forward(self, traces: torch.Tensor) -> None:
-        self.compute_potential()
+        self.compute_potential(traces)
         self.s = self.compute_spike()
         self._potential = ~self.s * self._potential + self.s * self.rest_potential
         self.step = self.step + 1
         super().forward(traces)
 
-    def compute_potential(self) -> None:
-        t = self.step * self.dt
+    def compute_potential(self, current: torch.Tensor) -> None:
         u = self.potential
         u_rest = self.rest_potential
         r = self.resistance
-        I = self.current
+        I = current
         dt = self.dt
         tau = self.tau
 
-        du = ((-(u - u_rest) + r * I(t)) * dt) / tau
+        du = ((-(u - u_rest) + r * I) * dt) / tau
         self._potential = u + du
 
     def compute_spike(self) -> bool:
