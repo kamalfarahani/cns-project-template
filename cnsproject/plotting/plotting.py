@@ -83,10 +83,9 @@ def rastor_plot(populatins_spikes: List[torch.Tensor], dt: float):
 #     plt.show()
 
 
-def plot_current(current: Callable[[float], float], steps: int, dt: float) -> None:
+def plot_current(currents: torch.Tensor, steps: int, dt: float) -> None:
     times = [dt * i for i in range(steps)]
-    current_values = [current(dt * i) for i in range(steps)]
-    plt.plot(times, current_values)
+    plt.plot(times, currents)
     plt.xlabel('Time')
     plt.ylabel('Current')
     plt.show()
