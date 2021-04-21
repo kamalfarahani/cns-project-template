@@ -179,21 +179,13 @@ class DenseConnection(AbstractConnection):
             weight_decay=weight_decay,
             **kwargs
         )
-        """
-        TODO.
+        
+        self.register_buffer('weight', torch.rand(*post.shape, *pre.shape))
+        if pre.is_inhibitory:
+            self.weight = -self.weight
 
-        1. Add more parameters if needed.
-        2. Fill the body accordingly.
-        """
-
-    def compute(self, s: torch.Tensor) -> None:
-        """
-        TODO.
-
-        Implement the computation of post-synaptic population activity given the
-        activity of the pre-synaptic population.
-        """
-        pass
+    def compute(self, s: torch.Tensor) -> torch.Tensor:
+        return self.weight @ (1.0 * s)
 
     def update(self, **kwargs) -> None:
         """
