@@ -56,7 +56,8 @@ def rastor_plot(populatins_spikes: List[torch.Tensor], dt: float):
             plot_neuron_index = list(map(lambda x: x + acc, spiked_neurons))
             plt.scatter(
                 [dt * step] * len(spiked_neurons),
-                plot_neuron_index, c=color)
+                plot_neuron_index,
+                c=color, s=[1] * len(spiked_neurons))
     
         acc = acc + len(spikes_flatten)
     
