@@ -3,18 +3,19 @@ Module for visualization and plotting.
 """
 import torch
 import random
+import numpy as np
 import matplotlib.pyplot as plt
 from typing import List, Callable
 
 from ..network.neural_populations import NeuralPopulation
 
 
-def get_random_rgb():
+def get_random_rgb() -> np.ndarray:
     r = random.random()
     b = random.random()
     g = random.random()
     color = (r, g, b)
-    return color
+    return np.array(color).reshape(1,-1)
 
 
 def rastor_plot(populatins_spikes: List[torch.Tensor], dt: float):
