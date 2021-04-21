@@ -3,7 +3,7 @@ Module for neuronal dynamics and populations.
 """
 
 from functools import reduce
-from math import exp
+from torch import exp
 from abc import abstractmethod
 from operator import mul
 from typing import Union, Iterable, Callable
@@ -314,7 +314,6 @@ class LIFPopulation(NeuralPopulation):
         tau: float = 10,
         resistance: float = 5.0,
         threshold: float = -50.0,
-        current: Callable[[float], float] = lambda t: 0.0,
         rest_potential: float = -70.0,
         dt: float = 0.001,
         **kwargs
@@ -329,45 +328,43 @@ class LIFPopulation(NeuralPopulation):
             learning=learning,
         )
 
-        self.tau = tau
-        self.threshold = threshold
-        self.current = current
-        self.rest_potential = rest_potential
-        self.resistance = resistance
+        self.register_buffer('tau', torch.tensor(tau))
+        self.register_buffer('threshold', torch.tensor(threshold))
+        self.register_buffer('rest_potential', torch.tensor(rest_potential))
+        self.register_buffer('resistance', torch.tensor(resistance))
+        self.register_buffer('_potential', torch.zeros(self.shape) + self.rest_potential)
         self.dt = dt
-        self._potential = rest_potential
         self.step = 0
-        self.spike_times = []
 
     @property
     def potential(self) -> float:
         return self._potential
 
     def forward(self, traces: torch.Tensor) -> None:
-        self.compute_potential()
-        if self.compute_spike():
-            self.refractory_and_reset()
-            self.spike_times.append(self.dt * self.step)
+        self.compute_potential(traces)
+        self.s = self.compute_spike()
+        self._potential = ~self.s * self._potential + self.s * self.rest_potential
+        self.step = self.step + 1
+        super().forward(traces)
 
-        self.step += 1
-
-    def compute_potential(self) -> None:
-        t = self.step * self.dt
+    def compute_potential(self, current: torch.Tensor) -> None:
         u = self.potential
         u_rest = self.rest_potential
         r = self.resistance
-        I = self.current
+        I = current
         dt = self.dt
         tau = self.tau
 
-        du = ((-(u - u_rest) + r * I(t)) * dt) / tau
+        du = ((-(u - u_rest) + r * I) * dt) / tau
         self._potential = u + du
 
     def compute_spike(self) -> bool:
         return self.potential > self.threshold
 
     def refractory_and_reset(self) -> None:
-        self._potential = self.rest_potential
+        self._potential = torch.zeros(self.shape) + self.rest_potential
+        self.s = torch.zeros(*self.shape, dtype=torch.bool)
+        self.step = 0
 
 
 class ELIFPopulation(LIFPopulation):
@@ -415,15 +412,14 @@ class ELIFPopulation(LIFPopulation):
             dt=dt
         )
 
-        self.sharpness = sharpness
-        self.theta_rh = theta_rh
+        self.register_buffer('sharpness', torch.tensor(sharpness))
+        self.register_buffer('theta_rh', torch.tensor(theta_rh))
 
-    def compute_potential(self) -> None:
-        t = self.step * self.dt
+    def compute_potential(self, current) -> None:
         u = self.potential
         u_rest = self.rest_potential
         r = self.resistance
-        I = self.current
+        I = current
         dt = self.dt
         tau = self.tau
         sharpness = self.sharpness
@@ -432,7 +428,7 @@ class ELIFPopulation(LIFPopulation):
         du = ((
                 -(u - u_rest) +
                 sharpness * exp((u - theta_rh) / sharpness) +
-                r * I(t)) / tau) * dt
+                r * I) / tau) * dt
 
         self._potential = u + du
 
@@ -488,17 +484,16 @@ class AELIFPopulation(ELIFPopulation):
             theta_rh=theta_rh
         )
 
-        self.tau_adaptation = tau_adaptation
-        self.subthreshold_adaptation = subthreshold_adaptation
-        self.spike_trigger_adaptation = spike_trigger_adaptation
-        self.adaptation = 0
+        self.register_buffer('tau_adaptation', torch.tensor(tau_adaptation))
+        self.register_buffer('subthreshold_adaptation', torch.tensor(subthreshold_adaptation))
+        self.register_buffer('spike_trigger_adaptation', torch.tensor(spike_trigger_adaptation))
+        self.register_buffer('adaptation', torch.zeros(self.shape))
 
-    def compute_potential(self) -> None:
-        t = self.step * self.dt
+    def compute_potential(self, current) -> None:
         u = self.potential
         u_rest = self.rest_potential
         r = self.resistance
-        I = self.current
+        I = current
         dt = self.dt
         tau = self.tau
         sharpness = self.sharpness
@@ -507,7 +502,7 @@ class AELIFPopulation(ELIFPopulation):
         du = ((
                 -(u - u_rest) +
                 sharpness * exp((u - theta_rh) / sharpness) +
-                r * I(t)) / tau) * dt
+                r * I) / tau) * dt
 
         self._potential = (u + du - r * self.adaptation)
         self.compute_adaptation()
@@ -520,7 +515,11 @@ class AELIFPopulation(ELIFPopulation):
         w = self.adaptation
         a = self.subthreshold_adaptation
         b = self.spike_trigger_adaptation
-        is_spiked = int(super().compute_spike())
+        is_spiked = super().compute_spike()
 
         dw = (((a * (u - u_rest) - w) * dt) / tau_w) + (b * is_spiked)
         self.adaptation = w + dw
+
+    def refractory_and_reset(self) -> None:
+        super().refractory_and_reset()
+        self.adaptation = torch.zeros(self.shape)
