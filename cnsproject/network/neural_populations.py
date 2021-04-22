@@ -340,10 +340,11 @@ class LIFPopulation(NeuralPopulation):
     def potential(self) -> float:
         return self._potential
 
-    def forward(self, traces: torch.Tensor) -> None:
+    def forward(self, traces: torch.Tensor, spike_effects: torch.Tensor) -> None:
         self.compute_potential(traces)
         self.s = self.compute_spike()
         self._potential = ~self.s * self._potential + self.s * self.rest_potential
+        self._potential += spike_effects
         self.step = self.step + 1
         super().forward(traces)
 

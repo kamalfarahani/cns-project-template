@@ -5,6 +5,7 @@ Module for connections between neural populations.
 from abc import ABC, abstractmethod
 from typing import Union, Sequence
 
+import random
 import torch
 
 from .neural_populations import NeuralPopulation
@@ -179,21 +180,13 @@ class DenseConnection(AbstractConnection):
             weight_decay=weight_decay,
             **kwargs
         )
-        """
-        TODO.
+        
+        self.register_buffer('weight', torch.rand(*post.shape, *pre.shape))
+        if pre.is_inhibitory:
+            self.weight = -self.weight
 
-        1. Add more parameters if needed.
-        2. Fill the body accordingly.
-        """
-
-    def compute(self, s: torch.Tensor) -> None:
-        """
-        TODO.
-
-        Implement the computation of post-synaptic population activity given the
-        activity of the pre-synaptic population.
-        """
-        pass
+    def compute(self, s: torch.Tensor) -> torch.Tensor:
+        return self.weight @ (1.0 * s)
 
     def update(self, **kwargs) -> None:
         """
@@ -225,6 +218,7 @@ class RandomConnection(AbstractConnection):
         self,
         pre: NeuralPopulation,
         post: NeuralPopulation,
+        connection_size: int,
         lr: Union[float, Sequence[float]] = None,
         weight_decay: float = 0.0,
         **kwargs
@@ -236,21 +230,23 @@ class RandomConnection(AbstractConnection):
             weight_decay=weight_decay,
             **kwargs
         )
-        """
-        TODO.
 
-        1. Add more parameters if needed.
-        2. Fill the body accordingly.
-        """
+        self.register_buffer('connection_size', torch.tensor(connection_size))
+        self.register_buffer('mask', self.compute_mask())
+        self.register_buffer('weight', torch.rand(*post.shape, *pre.shape) * self.mask)
+        if pre.is_inhibitory:
+            self.weight = -self.weight
+
+    def compute_mask(self) -> torch.Tensor:
+        mask = torch.zeros(*self.post.shape, *self.pre.shape)
+        for idx, row in enumerate(mask):
+            connections_idx = random.sample(range(len(row)), self.connection_size)
+            mask[idx, connections_idx] = torch.ones(self.connection_size)
+        
+        return mask
 
     def compute(self, s: torch.Tensor) -> None:
-        """
-        TODO.
-
-        Implement the computation of post-synaptic population activity given the
-        activity of the pre-synaptic population.
-        """
-        pass
+        return self.weight @ (1.0 * s)
 
     def update(self, **kwargs) -> None:
         """
