@@ -205,6 +205,9 @@ class DenseConnection(AbstractConnection):
         """
         pass
 
+    def __str__(self):
+        return 'Dense Connection'
+
 
 class RandomConnection(AbstractConnection):
     """
@@ -264,6 +267,9 @@ class RandomConnection(AbstractConnection):
         Reset all the state variables of the connection.
         """
         pass
+
+    def __str__(self):
+        return 'Random connection with {} presynaptic connections'.format(self.connection_size)
 
 
 class ConvolutionalConnection(AbstractConnection):
