@@ -43,10 +43,12 @@ def plot_activity(populatins_spikes: List[torch.Tensor], dt: float):
         activities.append(active_neurons / population_size)
     
     plt.plot([dt * i for i in range(steps)], activities)
+    plt.xlabel('Time')
+    plt.ylabel('Activity')
     plt.show()
 
 
-def rastor_plot(populatins_spikes: List[torch.Tensor], dt: float):
+def raster_plot(populatins_spikes: List[torch.Tensor], dt: float):
     acc = 0
     for spikes_per_step in populatins_spikes:
         color = get_random_rgb()
@@ -62,8 +64,7 @@ def rastor_plot(populatins_spikes: List[torch.Tensor], dt: float):
         acc = acc + len(spikes_flatten)
     
     plt.xlabel('Time')
-    plt.ylabel('Activity')
-    plt.legend()
+    plt.ylabel('Raster Activity')
     plt.show()
     
 
