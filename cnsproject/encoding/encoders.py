@@ -3,7 +3,7 @@ Module for encoding data into spike.
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, Callable
 
 import torch
 import numpy as np
@@ -44,6 +44,7 @@ class AbstractEncoder(ABC):
         self.time = time
         self.dt = dt
         self.device = device
+        self.steps = int(time / dt)
 
     @abstractmethod
     def __call__(self, data: torch.Tensor) -> None:
@@ -84,8 +85,6 @@ class Time2FirstSpikeEncoder(AbstractEncoder):
             device=device,
             **kwargs
         )
-
-        self.steps = int(time / dt)
 
     def __call__(self, min_val: int, max_val: int, data: torch.Tensor) -> torch.Tensor:
         shape = data.shape
@@ -128,7 +127,6 @@ class PositionEncoder(AbstractEncoder):
         )
 
         self.neurons_number = neurons_number
-        self.steps = int(time / dt)
 
     def __call__(self, min_val: int, max_val: int, data: torch.Tensor) -> torch.Tensor:
         neuron_distance = (max_val - min_val) / self.neurons_number
@@ -169,7 +167,6 @@ class PoissonEncoder(AbstractEncoder):
         )
 
         self.max_spikes = max_spikes
-        self.steps = int(time / dt)
 
     def __call__(self, min_val: int, max_val: int, data: torch.Tensor) -> torch.Tensor:
         shape = data.shape
@@ -188,9 +185,9 @@ class PoissonEncoder(AbstractEncoder):
         return coded_data
 
 
-def min_max_scale(min_val, max_val, value):
+def min_max_scale(min_val: float, max_val: float, value: float) -> float:
     return (value - min_val) / (max_val - min_val)
 
 
-def gaussian_pdf(mu, sigma):
+def gaussian_pdf(mu: float, sigma: float) -> Callable[[float], float]:
     return lambda x: 1 / (sigma * np.sqrt(2 * np.pi)) * np.exp( - (x - mu) ** 2 / (2 * sigma ** 2) )
