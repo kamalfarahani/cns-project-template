@@ -88,10 +88,10 @@ def plot_adaptation(adaptations: List[float], dt: float):
 def plot_position_encoder_result(coded: torch.Tensor, data_shape: torch.Size, neurons_number: int, dt: float):
     neurons_spkies = coded.view(
         reduce(mul, data_shape), neurons_number).transpose(0, 1) * dt
-    
+    color = get_random_rgb()
     for neuron_idx, spike_times in enumerate(neurons_spkies):
         size = len(spike_times)
         plt.scatter(
-            spike_times, [neuron_idx] * size, c='b', s=[1] * size)
+            spike_times, [neuron_idx] * size, c=color, s=[1] * size)
     
     plt.show()
