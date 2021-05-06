@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from typing import List, Callable
 from functools import reduce
-from operator import add
+from operator import add, mul
 
 from ..network.neural_populations import NeuralPopulation
 
@@ -77,9 +77,21 @@ def plot_current(currents: torch.Tensor, steps: int, dt: float) -> None:
     plt.show()
 
 
-def plot_adaptation(adaptations: List[float], dt):
+def plot_adaptation(adaptations: List[float], dt: float):
     times = [dt * i for i in range(len(adaptations))]
     plt.plot(times, adaptations, c='r')
     plt.xlabel('time')
     plt.ylabel('adaptation value')
+    plt.show()
+
+
+def plot_position_encoder_result(coded: torch.Tensor, data_shape: torch.Size, neurons_number: int, dt: float):
+    neurons_spkies = coded.view(
+        reduce(mul, data_shape), neurons_number).transpose(0, 1) * dt
+    color = get_random_rgb()
+    for neuron_idx, spike_times in enumerate(neurons_spkies):
+        size = len(spike_times)
+        plt.scatter(
+            spike_times, [neuron_idx] * size, c=color, s=[1] * size)
+    
     plt.show()
