@@ -189,13 +189,7 @@ class DenseConnection(AbstractConnection):
         return self.weight @ (1.0 * s)
 
     def update(self, **kwargs) -> None:
-        """
-        TODO.
-
-        Update the connection weights based on the learning rule computations.\
-        You might need to call the parent method.
-        """
-        pass
+        super().update(**kwargs)
 
     def reset_state_variables(self) -> None:
         """
@@ -252,13 +246,7 @@ class RandomConnection(AbstractConnection):
         return self.weight @ (1.0 * s)
 
     def update(self, **kwargs) -> None:
-        """
-        TODO.
-
-        Update the connection weights based on the learning rule computations.\
-        You might need to call the parent method.
-        """
-        pass
+        super().update(**kwargs)
 
     def reset_state_variables(self) -> None:
         """
