@@ -66,12 +66,12 @@ class LearningRule(ABC):
 
         """
         if self.weight_decay:
-            self.connection.w *= self.weight_decay
+            self.connection.weight *= self.weight_decay
 
         if (
             self.connection.wmin != -np.inf or self.connection.wmax != np.inf
         ) and not isinstance(self.connection, NoOp):
-            self.connection.w.clamp_(self.connection.wmin,
+            self.connection.weight.clamp_(self.connection.wmin,
                                      self.connection.wmax)
 
 
@@ -149,6 +149,8 @@ class STDP(LearningRule):
                 (self.lr[1] * pre.traces.view(*pre.shape, 1) @ post.s.view(1, *post.shape).float()).transpose(0, 1) ) * dt
 
         self.connection.weight += dw
+
+        super().update()
 
 
 class FlatSTDP(LearningRule):

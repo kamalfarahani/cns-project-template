@@ -142,7 +142,7 @@ class AbstractConnection(ABC, torch.nn.Module):
 
         mask = kwargs.get("mask", None)
         if mask is not None:
-            self.w.masked_fill_(mask, 0)
+            self.weight.masked_fill_(mask, 0)
 
     @abstractmethod
     def reset_state_variables(self) -> None:
