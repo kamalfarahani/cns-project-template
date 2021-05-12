@@ -130,6 +130,8 @@ class NeuralPopulation(torch.nn.Module):
         None
 
         """
+
+        self.compute_decay()
         if self.spike_trace:
             self.traces *= self.trace_decay
 
@@ -184,10 +186,12 @@ class NeuralPopulation(torch.nn.Module):
         None
 
         """
-        self.dt = torch.tensor(self.dt)
+        #self.dt = torch.tensor(self.dt)
 
         if self.spike_trace:
             self.trace_decay = torch.exp(-self.dt/self.tau_s)
+        else:
+            self.trace_decay = 1
 
     def reset_state_variables(self) -> None:
         """
@@ -248,6 +252,7 @@ class InputPopulation(NeuralPopulation):
     def __init__(
         self,
         shape: Iterable[int],
+        dt: float = 0.001,
         spike_trace: bool = True,
         additive_spike_trace: bool = True,
         tau_s: Union[float, torch.Tensor] = 10.,
@@ -263,6 +268,8 @@ class InputPopulation(NeuralPopulation):
             trace_scale=trace_scale,
             learning=learning,
         )
+
+        self.dt = dt
 
     def forward(self, traces: torch.Tensor) -> None:
         """
