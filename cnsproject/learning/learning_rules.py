@@ -54,6 +54,8 @@ class LearningRule(ABC):
 
         self.weight_decay = 1 - weight_decay if weight_decay else 1.
 
+        self.connection = connection
+
     def update(self) -> None:
         """
         Abstract method for a learning rule update.
@@ -138,21 +140,15 @@ class STDP(LearningRule):
             weight_decay=weight_decay,
             **kwargs
         )
-        """
-        TODO.
-
-        Consider the additional required parameters and fill the body\
-        accordingly.
-        """
 
     def update(self, **kwargs) -> None:
-        """
-        TODO.
+        pre = self.connection.pre
+        post = self.connection.post
+        dt = pre.dt
+        dw = ( -self.lr[0] * post.traces.view(*post.shape, 1) @ pre.s.view(1, *pre.shape).float() + 
+                (self.lr[1] * pre.traces.view(*pre.shape, 1) @ post.s.view(1, *post.shape).float()).transpose(0, 1) ) * dt
 
-        Implement the dynamics and updating rule. You might need to call the\
-        parent method.
-        """
-        pass
+        self.connection.weight += dw
 
 
 class FlatSTDP(LearningRule):
