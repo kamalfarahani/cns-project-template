@@ -271,7 +271,7 @@ class InputPopulation(NeuralPopulation):
 
         self.dt = dt
 
-    def forward(self, traces: torch.Tensor) -> None:
+    def forward(self, traces: torch.Tensor, spike_effects: torch.Tensor) -> None:
         """
         Simulate the neural population for a single step.
 
