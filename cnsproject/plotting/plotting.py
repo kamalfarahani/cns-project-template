@@ -1,6 +1,7 @@
 """
 Module for visualization and plotting.
 """
+import copy
 import torch
 import random
 import numpy as np
@@ -95,3 +96,17 @@ def plot_position_encoder_result(coded: torch.Tensor, data_shape: torch.Size, ne
             spike_times, [neuron_idx] * size, c=color, s=[1] * size)
     
     plt.show()
+
+
+def plot_weights(weights: List[torch.Tensor], dt: float):
+    weights_in_time = torch.tensor(
+        list(map(
+            lambda w: list(w.flatten()),
+            weights))
+    ).transpose(0, 1)
+
+    for w in weights_in_time:
+        steps = len(w)
+        plt.plot([dt * i for i in range(steps)], w, color=get_random_rgb())
+    plt.show()
+    
