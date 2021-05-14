@@ -349,9 +349,9 @@ class LIFPopulation(NeuralPopulation):
 
     def forward(self, traces: torch.Tensor, spike_effects: torch.Tensor) -> None:
         self.compute_potential(traces)
+        self._potential += spike_effects
         self.s = self.compute_spike()
         self._potential = ~self.s * self._potential + self.s * self.rest_potential
-        self._potential += spike_effects
         self.step = self.step + 1
         super().forward(traces)
 
