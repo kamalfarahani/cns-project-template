@@ -166,6 +166,7 @@ class FlatSTDP(LearningRule):
         connection: AbstractConnection,
         lr: Optional[Union[float, Sequence[float]]] = None,
         weight_decay: float = 0.,
+        trace_window_steps: int = 100,
         **kwargs
     ) -> None:
         super().__init__(
@@ -175,12 +176,34 @@ class FlatSTDP(LearningRule):
             **kwargs
         )
 
+        self.trace_window_steps = trace_window_steps
+        self.pre_traces = torch.zeros(trace_window_steps, *connection.pre.shape)
+        self.pre_traces_index = 0
+        self.post_traces = torch.zeros(trace_window_steps, *connection.post.shape)
+        self.post_traces_index = 0
+    
+    def add_pre_trace(self, trace):
+        self.pre_traces_index = self.pre_traces_index % self.trace_window_steps
+        self.pre_traces[self.pre_traces_index] = trace
+        self.pre_traces_index += 1
+    
+    def add_post_trace(self, trace):
+        self.post_traces_index = self.post_traces_index % self.trace_window_steps
+        self.post_traces[self.post_traces_index] = trace
+        self.post_traces_index += 1
+
     def update(self, **kwargs) -> None:
         pre = self.connection.pre
+        self.add_pre_trace(pre.s)
+        pre_traces = sum(self.pre_traces)
+
         post = self.connection.post
+        self.add_post_trace(post.s)
+        post_traces = sum(self.post_traces)
+        
         dt = pre.dt
-        dw = ( -self.lr[0] * post.s.view(*post.shape, 1) @ pre.s.view(1, *pre.shape).float() + 
-                (self.lr[1] * pre.s.view(*pre.shape, 1) @ post.s.view(1, *post.shape).float()).transpose(0, 1) ) * dt
+        dw = ( -self.lr[0] * post_traces.view(*post.shape, 1) @ pre.s.view(1, *pre.shape).float() + 
+                (self.lr[1] * pre_traces.view(*pre.shape, 1) @ post.s.view(1, *post.shape).float()).transpose(0, 1) ) * dt
 
         self.connection.weight += dw
 

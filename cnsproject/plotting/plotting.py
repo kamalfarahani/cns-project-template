@@ -109,6 +109,7 @@ def plot_weights(weights: List[torch.Tensor], dt: float):
 
     fig, axs = plt.subplots(number_of_post_synaptic_neurons)
     fig.tight_layout(pad=4.0)
+    fig.set_size_inches(10, 10)
     colors = [get_random_rgb() for _ in range(number_of_weights)]
     for i in range(number_of_post_synaptic_neurons):
         for j in range(i * number_of_weights, (i + 1) * number_of_weights):
@@ -117,7 +118,7 @@ def plot_weights(weights: List[torch.Tensor], dt: float):
             weight_number = j - i * number_of_weights
             axs[i].plot([dt * i for i in range(steps)], w, color=colors[weight_number])
         
-        axs[i].set_title(f'Weights changes for post synaptic neuron { i }')
+        axs[i].set_title(f'Weights changes for post synaptic neuron { i + 1 }')
         axs[i].set_xlabel('Time')
         axs[i].set_ylabel('Weight value')
     
