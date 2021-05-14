@@ -54,6 +54,8 @@ class LearningRule(ABC):
 
         self.weight_decay = 1 - weight_decay if weight_decay else 1.
 
+        self.connection = connection
+
     def update(self) -> None:
         """
         Abstract method for a learning rule update.
@@ -64,12 +66,12 @@ class LearningRule(ABC):
 
         """
         if self.weight_decay:
-            self.connection.w *= self.weight_decay
+            self.connection.weight *= self.weight_decay
 
         if (
             self.connection.wmin != -np.inf or self.connection.wmax != np.inf
         ) and not isinstance(self.connection, NoOp):
-            self.connection.w.clamp_(self.connection.wmin,
+            self.connection.weight.clamp_(self.connection.wmin,
                                      self.connection.wmax)
 
 
@@ -138,21 +140,17 @@ class STDP(LearningRule):
             weight_decay=weight_decay,
             **kwargs
         )
-        """
-        TODO.
-
-        Consider the additional required parameters and fill the body\
-        accordingly.
-        """
 
     def update(self, **kwargs) -> None:
-        """
-        TODO.
+        pre = self.connection.pre
+        post = self.connection.post
+        dt = pre.dt
+        dw = ( -self.lr[0] * post.traces.view(*post.shape, 1) @ pre.s.view(1, *pre.shape).float() + 
+                (self.lr[1] * pre.traces.view(*pre.shape, 1) @ post.s.view(1, *post.shape).float()).transpose(0, 1) ) * dt
 
-        Implement the dynamics and updating rule. You might need to call the\
-        parent method.
-        """
-        pass
+        self.connection.weight += dw
+
+        super().update()
 
 
 class FlatSTDP(LearningRule):
@@ -176,21 +174,17 @@ class FlatSTDP(LearningRule):
             weight_decay=weight_decay,
             **kwargs
         )
-        """
-        TODO.
-
-        Consider the additional required parameters and fill the body\
-        accordingly.
-        """
 
     def update(self, **kwargs) -> None:
-        """
-        TODO.
+        pre = self.connection.pre
+        post = self.connection.post
+        dt = pre.dt
+        dw = ( -self.lr[0] * post.s.view(*post.shape, 1) @ pre.s.view(1, *pre.shape).float() + 
+                (self.lr[1] * pre.s.view(*pre.shape, 1) @ post.s.view(1, *post.shape).float()).transpose(0, 1) ) * dt
 
-        Implement the dynamics and updating rule. You might need to call the\
-        parent method.
-        """
-        pass
+        self.connection.weight += dw
+
+        super().update()
 
 
 class RSTDP(LearningRule):
