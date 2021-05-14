@@ -1,7 +1,6 @@
 """
 Module for visualization and plotting.
 """
-import copy
 import torch
 import random
 import numpy as np
@@ -105,8 +104,22 @@ def plot_weights(weights: List[torch.Tensor], dt: float):
             weights))
     ).transpose(0, 1)
 
-    for w in weights_in_time:
-        steps = len(w)
-        plt.plot([dt * i for i in range(steps)], w, color=get_random_rgb())
+    number_of_post_synaptic_neurons = len(weights[0])
+    number_of_weights = len(weights[0][0])
+
+    fig, axs = plt.subplots(number_of_post_synaptic_neurons)
+    fig.tight_layout(pad=4.0)
+    colors = [get_random_rgb() for _ in range(number_of_weights)]
+    for i in range(number_of_post_synaptic_neurons):
+        for j in range(i * number_of_weights, (i + 1) * number_of_weights):
+            w = weights_in_time[j]
+            steps = len(w)
+            weight_number = j - i * number_of_weights
+            axs[i].plot([dt * i for i in range(steps)], w, color=colors[weight_number])
+        
+        axs[i].set_title(f'Weights changes for post synaptic neuron { i }')
+        axs[i].set_xlabel('Time')
+        axs[i].set_ylabel('Weight value')
+    
     plt.show()
     
