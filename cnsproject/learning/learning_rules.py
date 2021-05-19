@@ -9,6 +9,7 @@ import numpy as np
 import torch
 
 from ..network.connections import AbstractConnection
+from ..network.neural_populations import NeuralPopulation
 
 
 class LearningRule(ABC):
@@ -231,22 +232,22 @@ class RSTDP(LearningRule):
             weight_decay=weight_decay,
             **kwargs
         )
-        """
-        TODO.
 
-        Consider the additional required parameters and fill the body\
-        accordingly.
-        """
+        self.c = torch.zeros(*connection.post.shape, *connection.pre.shape)
+        self.tau_c = kwargs.get('tau_c', 0.1)
 
-    def update(self, **kwargs) -> None:
-        """
-        TODO.
+    def update(self, dopamin: float, **kwargs) -> None:
+        pre = self.connection.pre
+        post = self.connection.post
+        dt = pre.dt
+        
+        dc = (-self.c / self.tau_c) * dt + stdp(dt, self.lr[0], self.lr[1], pre, post)
+        self.c += dc
 
-        Implement the dynamics and updating rule. You might need to call the
-        parent method. Make sure to consider the reward value as a given keyword
-        argument.
-        """
-        pass
+        dw = self.c * dopamin
+        self.connection.weight += dw
+
+        super().update()
 
 
 class FlatRSTDP(LearningRule):
@@ -286,3 +287,10 @@ class FlatRSTDP(LearningRule):
         argument.
         """
         pass
+
+
+def stdp(dt: float, A_minus: float, A_plus: float, pre: NeuralPopulation, post: NeuralPopulation) -> torch.Tensor:
+    dw = ( -A_minus * post.traces.view(*post.shape, 1) @ pre.s.view(1, *pre.shape).float() + 
+           (A_plus * pre.traces.view(*pre.shape, 1) @ post.s.view(1, *post.shape).float()).transpose(0, 1) ) * dt
+    
+    return dw
