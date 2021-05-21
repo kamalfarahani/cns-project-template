@@ -241,11 +241,13 @@ class RSTDP(LearningRule):
         post = self.connection.post
         dt = pre.dt
         
-        dc = (-self.c / self.tau_c) * dt + stdp(dt, self.lr[0], self.lr[1], pre, post)
+        spikes_delta = (post.s.view(*post.shape, 1).long() @ pre.s.view(1, *pre.shape).long())
+        dc = (-self.c / self.tau_c) * dt + (stdp(dt, self.lr[0], self.lr[1], pre, post) * spikes_delta)
         self.c += dc
 
         dw = self.c * dopamin
         self.connection.weight += dw
+        self.connection.weight[self.connection.weight <= 0.01] = 0.05
 
         super().update()
 
