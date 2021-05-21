@@ -11,6 +11,8 @@ import torch
 from .neural_populations import NeuralPopulation
 
 
+MAX_RANDOM_WEIGHT = 0.4
+
 class AbstractConnection(ABC, torch.nn.Module):
     """
     Abstract class for implementing connections.
@@ -181,7 +183,7 @@ class DenseConnection(AbstractConnection):
             **kwargs
         )
         
-        self.register_buffer('weight', torch.rand(*post.shape, *pre.shape))
+        self.register_buffer('weight', torch.rand(*post.shape, *pre.shape) * MAX_RANDOM_WEIGHT)
         if pre.is_inhibitory:
             self.weight = -self.weight
 
@@ -230,7 +232,7 @@ class RandomConnection(AbstractConnection):
 
         self.register_buffer('connection_size', torch.tensor(connection_size))
         self.register_buffer('mask', self.compute_mask())
-        self.register_buffer('weight', torch.rand(*post.shape, *pre.shape) * self.mask)
+        self.register_buffer('weight', torch.rand(*post.shape, *pre.shape) * self.mask * MAX_RANDOM_WEIGHT)
         if pre.is_inhibitory:
             self.weight = -self.weight
 
