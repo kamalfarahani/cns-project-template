@@ -123,4 +123,10 @@ def plot_weights(weights: List[torch.Tensor], dt: float):
         axs[i].set_ylabel('Weight value')
     
     plt.show()
-    
+
+
+def plot_dopamin(dopamins: List[float], dt: float):
+    plt.plot([dt * i for i in range(len(dopamins))], dopamins)
+    plt.xlabel('Time')
+    plt.ylabel('Dopamin')
+    plt.show()
