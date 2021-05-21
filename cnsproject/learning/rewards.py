@@ -50,3 +50,19 @@ class AbstractReward(ABC):
 
         """
         pass
+
+class SimpleReward(AbstractReward):
+
+    def __init__(self, tau_d: float, dt: float):
+        self.dopamin = 0
+        self.tau_d = tau_d
+        self.dt = dt
+    
+    def compute(self, rewarded_dopamin: float, **kwargs) -> float:
+        dd = ((-self.dopamin / self.tau_d) + rewarded_dopamin) * self.dt
+        self.dopamin += dd
+
+        return self.dopamin
+    
+    def update(self, **kwargs) -> None:
+        pass
