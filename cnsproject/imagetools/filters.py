@@ -1,7 +1,13 @@
+import enum
 import torch
 
 from typing import Tuple
 from numpy import pi, sqrt, cos, sin
+
+
+class FilterModes(enum.Enum):
+    OnCenter = 1
+    OffCenter = 2
 
 
 def make_axis(size: int) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -40,7 +46,9 @@ def gabor(lambda_: float, theta: float, sigma: float, gamma: float, size: int) -
     return (E * C)
 
 
-def convolve(image: torch.Tensor, filter: torch.Tensor):
+def convolve(image: torch.Tensor, filter: torch.Tensor, mode: FilterModes = FilterModes.OnCenter):
+    filter_prime = filter * -1 if mode == FilterModes.OffCenter else filter
+
     image_rows = image.shape[0]
     image_columns = image.shape[1]
     
@@ -52,6 +60,9 @@ def convolve(image: torch.Tensor, filter: torch.Tensor):
     columns = result.shape[1]
     for i in range(rows):
         for j in range(columns):
-            result[i, j] = (filter * image[i: i + filter_rows, j: j + filter_columns]).sum()
+            result[i, j] = (filter_prime * image[i: i + filter_rows, j: j + filter_columns]).sum()
     
-    return result.clamp(min=0, max=256)
+    min_pix = result.min()
+    max_pix = result.max()
+
+    return ((result - min_pix) / (max_pix - min_pix)) * 255
