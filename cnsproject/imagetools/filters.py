@@ -61,8 +61,5 @@ def convolve(image: torch.Tensor, filter: torch.Tensor, mode: FilterModes = Filt
     for i in range(rows):
         for j in range(columns):
             result[i, j] = (filter_prime * image[i: i + filter_rows, j: j + filter_columns]).sum()
-    
-    min_pix = result.min()
-    max_pix = result.max()
 
-    return ((result - min_pix) / (max_pix - min_pix)) * 255
+    return result
