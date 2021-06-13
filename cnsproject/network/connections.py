@@ -3,12 +3,14 @@ Module for connections between neural populations.
 """
 
 from abc import ABC, abstractmethod
-from typing import Union, Sequence
+from typing import Union, Sequence, Tuple
 
 import random
+from numpy.core.fromnumeric import size
 import torch
 
 from .neural_populations import NeuralPopulation
+from ..imagetools.filters import convolve
 
 
 MAX_RANDOM_WEIGHT = 0.4
@@ -275,6 +277,7 @@ class ConvolutionalConnection(AbstractConnection):
         self,
         pre: NeuralPopulation,
         post: NeuralPopulation,
+        kernel: torch.Tensor,
         lr: Union[float, Sequence[float]] = None,
         weight_decay: float = 0.0,
         **kwargs
@@ -286,30 +289,17 @@ class ConvolutionalConnection(AbstractConnection):
             weight_decay=weight_decay,
             **kwargs
         )
-        """
-        TODO.
 
-        1. Add more parameters if needed.
-        2. Fill the body accordingly.
-        """
+        self.register_buffer('kernel', kernel)
 
-    def compute(self, s: torch.Tensor) -> None:
-        """
-        TODO.
-
-        Implement the computation of post-synaptic population activity given the
-        activity of the pre-synaptic population.
-        """
-        pass
+    def compute(self, s: torch.Tensor) -> torch.Tensor:
+        if s.shape != self.pre.shape:
+            raise Exception('Spikes shape is diffrent from pre shape!')
+        
+        return convolve(s, torch.flipud(torch.fliplr(self.kernel)))
 
     def update(self, **kwargs) -> None:
-        """
-        TODO.
-
-        Update the connection weights based on the learning rule computations.
-        You might need to call the parent method.
-        """
-        pass
+        super().update(**kwargs)
 
     def reset_state_variables(self) -> None:
         """
@@ -335,6 +325,8 @@ class PoolingConnection(AbstractConnection):
         self,
         pre: NeuralPopulation,
         post: NeuralPopulation,
+        size: int,
+        stride: int,
         lr: Union[float, Sequence[float]] = None,
         weight_decay: float = 0.0,
         **kwargs
@@ -346,32 +338,33 @@ class PoolingConnection(AbstractConnection):
             weight_decay=weight_decay,
             **kwargs
         )
-        """
-        TODO.
 
-        1. Add more parameters if needed.
-        2. Fill the body accordingly.
-        """
+        self.size = size
+        self.stride = stride  
+        self.set_output_shape_and_mask()
 
-    def compute(self, s: torch.Tensor) -> None:
-        """
-        TODO.
+    def set_output_shape_and_mask(self):
+        self.output_shape = calculate_pooling_post_population_size(self.size, self.stride, self.pre.shape)
+        if self.post.shape != self.output_shape:
+            raise Exception('Wrong post population shape!')
 
-        Implement the computation of post-synaptic population activity given the
-        activity of the pre-synaptic population.
-        """
-        pass
+        self.output_mask = torch.ones(self.output_shape[0], self.output_shape[1])
+
+    def compute(self, s: torch.Tensor) -> torch.Tensor:
+        result = torch.zeros(self.output_shape)
+        for i in range(self.output_shape[0]):
+            for j in range(self.output_shape[1]):
+                x = i * self.stride
+                y = j * self.stride
+                if s[x: x + self.size, y: y + self.size].sum() >= 1:
+                    if self.output_mask[i][j] != 0:
+                        result[i][j] = 1
+                        self.output_mask[i][j] = 0
+        
+        return result
 
     def update(self, **kwargs) -> None:
-        """
-        TODO.
-
-        Update the connection weights based on the learning rule computations.\
-        You might need to call the parent method.
-
-        Note: You should be careful with this method.
-        """
-        pass
+        super().update(**kwargs)
 
     def reset_state_variables(self) -> None:
         """
@@ -380,3 +373,10 @@ class PoolingConnection(AbstractConnection):
         Reset all the state variables of the connection.
         """
         pass
+
+
+def calculate_pooling_post_population_size(size: int, stride: int, pre_shape: torch.Size) -> Tuple[int, int]:
+    output_rows = int((pre_shape[0] - size) / stride) + 1
+    out_put_columns = int((pre_shape[1] - size) / stride) + 1
+    
+    return (output_rows, out_put_columns)
