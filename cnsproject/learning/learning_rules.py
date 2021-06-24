@@ -342,6 +342,7 @@ class WinnerSTDP():
             dw[dw < 0] = -self.lr[0]
             
             self.features[idx] += dw
+            self.features.clamp_(0, 1)
 
 
 def stdp(dt: float, A_minus: float, A_plus: float, pre: NeuralPopulation, post: NeuralPopulation) -> torch.Tensor:
