@@ -3,7 +3,7 @@ Module for learning rules.
 """
 
 from abc import ABC
-from typing import Union, Optional, Sequence
+from typing import Union, Optional, Sequence, List, Tuple
 
 import numpy as np
 import torch
@@ -313,6 +313,36 @@ class FlatRSTDP(LearningRule):
         self.connection.weight[self.connection.weight <= 0.01] = 0.05
 
         super().update()
+
+
+class WinnerSTDP():
+    def __init__(self, pre: NeuralPopulation, posts: List[NeuralPopulation], features: torch.Tensor, lr: float) -> None:
+        self.pre = pre
+        self.posts = posts
+        self.features = features
+        self.lr = [lr, lr]
+    
+    def update(self, winners: List[Tuple[int, int]]) -> None:
+        pre = self.pre
+        posts = self.posts
+        for idx, winner in enumerate(winners):
+            y = winner[1]
+            x = winner[0]
+            y_length = len(self.features[idx])
+            x_length = len(self.features[idx][0])
+
+            pre_traces = pre.traces[y: y + y_length, x: x + x_length]
+            pre_spikes = pre.s[y: y + y_length, x: x + x_length]
+
+            post_trace = posts[idx].traces[winner[0], winner[1]]
+            post_spike = posts[idx].s[winner[0], winner[1]]
+
+            dw = -self.lr[0] * post_trace * pre_spikes + self.lr[1] * pre_traces * post_spike
+            dw[dw > 0] = self.lr[0]
+            dw[dw < 0] = -self.lr[0]
+            
+            self.features[idx] += dw
+            self.features.clamp_(0, 1)
 
 
 def stdp(dt: float, A_minus: float, A_plus: float, pre: NeuralPopulation, post: NeuralPopulation) -> torch.Tensor:

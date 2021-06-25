@@ -340,6 +340,7 @@ class LIFPopulation(NeuralPopulation):
         self.register_buffer('rest_potential', torch.tensor(rest_potential))
         self.register_buffer('resistance', torch.tensor(resistance))
         self.register_buffer('_potential', torch.zeros(self.shape) + self.rest_potential)
+        self.register_buffer('prev_potential', self._potential.detach().clone())
         self.dt = dt
         self.step = 0
 
@@ -351,6 +352,7 @@ class LIFPopulation(NeuralPopulation):
         self.compute_potential(traces)
         self._potential += spike_effects
         self.s = self.compute_spike()
+        self.prev_potential = self._potential.detach().clone()
         self._potential = ~self.s * self._potential + self.s * self.rest_potential
         self.step = self.step + 1
         super().forward(traces)
