@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from typing import List, Tuple
 
 from ..network.neural_populations import NeuralPopulation
-from ..imagetools.filters import convolve
+from ..imagetools.filters import convolve, make_gaussian_filter
 
 
 class AbstractDecision(ABC):
@@ -108,3 +108,39 @@ class WinnerTakeAllDecision(AbstractDecision):
 
         """
         pass
+
+
+class LateralInhibition(AbstractDecision):
+
+    def __init__(self, inhibition_area_size: int, std: float, population: NeuralPopulation):
+        self.inhibition_area_size = inhibition_area_size
+        self.std = std
+        self.population = population
+    
+    def create_inhibition_window(self):
+        self.inhibition_window = make_gaussian_filter(self.inhibition_area_size * 2 + 1, self.std) * -1
+        self.inhibition_window[self.inhibition_area_size, self.inhibition_area_size] = 0
+
+    def compute(self):
+        rows = self.population.shape[0]
+        columns = self.population.shape[1]
+
+        for i in range(rows):
+            for j in range(columns):
+                if self.population.s[i, j] == 1:
+                    y1 = i - self.inhibition_area_size
+                    y2 = i + self.inhibition_area_size
+                    x1 = j - self.inhibition_area_size
+                    x2 = j + self.inhibition_area_size
+
+                    y1 = y1 if y1 >= 0 else 0
+                    y2 = y2 if y2 < rows else rows - 1
+                    x1 = x1 if x1 >= 0 else 0
+                    x2 = x2 if x2 < columns else columns - 1
+
+                    t1 = self.inhibition_area_size - (i - y1)
+                    t2 = self.inhibition_area_size + (y2 - i) + 1
+                    z1 = self.inhibition_area_size - (j - x1)
+                    z2 = self.inhibition_area_size + (x2 - j) + 1
+                    
+                    self.population._potential[y1 : y2 + 1, x1 : x2 + 1] += self.inhibition_window[t1:t2, z1: z2]
