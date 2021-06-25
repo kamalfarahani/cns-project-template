@@ -3,12 +3,13 @@ Module for learning rules.
 """
 
 from abc import ABC
-from typing import Union, Optional, Sequence
+from typing import Union, Optional, Sequence, List, Tuple
 
 import numpy as np
 import torch
 
 from ..network.connections import AbstractConnection
+from ..network.neural_populations import NeuralPopulation
 
 
 class LearningRule(ABC):
@@ -54,6 +55,8 @@ class LearningRule(ABC):
 
         self.weight_decay = 1 - weight_decay if weight_decay else 1.
 
+        self.connection = connection
+
     def update(self) -> None:
         """
         Abstract method for a learning rule update.
@@ -64,12 +67,12 @@ class LearningRule(ABC):
 
         """
         if self.weight_decay:
-            self.connection.w *= self.weight_decay
+            self.connection.weight *= self.weight_decay
 
         if (
             self.connection.wmin != -np.inf or self.connection.wmax != np.inf
         ) and not isinstance(self.connection, NoOp):
-            self.connection.w.clamp_(self.connection.wmin,
+            self.connection.weight.clamp_(self.connection.wmin,
                                      self.connection.wmax)
 
 
@@ -138,21 +141,17 @@ class STDP(LearningRule):
             weight_decay=weight_decay,
             **kwargs
         )
-        """
-        TODO.
-
-        Consider the additional required parameters and fill the body\
-        accordingly.
-        """
 
     def update(self, **kwargs) -> None:
-        """
-        TODO.
+        pre = self.connection.pre
+        post = self.connection.post
+        dt = pre.dt
+        dw = ( -self.lr[0] * post.traces.view(*post.shape, 1) @ pre.s.view(1, *pre.shape).float() + 
+                (self.lr[1] * pre.traces.view(*pre.shape, 1) @ post.s.view(1, *post.shape).float()).transpose(0, 1) ) * dt
 
-        Implement the dynamics and updating rule. You might need to call the\
-        parent method.
-        """
-        pass
+        self.connection.weight += dw
+
+        super().update()
 
 
 class FlatSTDP(LearningRule):
@@ -168,6 +167,7 @@ class FlatSTDP(LearningRule):
         connection: AbstractConnection,
         lr: Optional[Union[float, Sequence[float]]] = None,
         weight_decay: float = 0.,
+        trace_window_steps: int = 100,
         **kwargs
     ) -> None:
         super().__init__(
@@ -176,21 +176,39 @@ class FlatSTDP(LearningRule):
             weight_decay=weight_decay,
             **kwargs
         )
-        """
-        TODO.
 
-        Consider the additional required parameters and fill the body\
-        accordingly.
-        """
+        self.trace_window_steps = trace_window_steps
+        self.pre_traces = torch.zeros(trace_window_steps, *connection.pre.shape)
+        self.pre_traces_index = 0
+        self.post_traces = torch.zeros(trace_window_steps, *connection.post.shape)
+        self.post_traces_index = 0
+    
+    def add_pre_trace(self, trace):
+        self.pre_traces_index = self.pre_traces_index % self.trace_window_steps
+        self.pre_traces[self.pre_traces_index] = trace
+        self.pre_traces_index += 1
+    
+    def add_post_trace(self, trace):
+        self.post_traces_index = self.post_traces_index % self.trace_window_steps
+        self.post_traces[self.post_traces_index] = trace
+        self.post_traces_index += 1
 
     def update(self, **kwargs) -> None:
-        """
-        TODO.
+        pre = self.connection.pre
+        self.add_pre_trace(pre.s)
+        pre_traces = sum(self.pre_traces)
 
-        Implement the dynamics and updating rule. You might need to call the\
-        parent method.
-        """
-        pass
+        post = self.connection.post
+        self.add_post_trace(post.s)
+        post_traces = sum(self.post_traces)
+        
+        dt = pre.dt
+        dw = ( -self.lr[0] * post_traces.view(*post.shape, 1) @ pre.s.view(1, *pre.shape).float() + 
+                (self.lr[1] * pre_traces.view(*pre.shape, 1) @ post.s.view(1, *post.shape).float()).transpose(0, 1) ) * dt
+
+        self.connection.weight += dw
+
+        super().update()
 
 
 class RSTDP(LearningRule):
@@ -214,22 +232,24 @@ class RSTDP(LearningRule):
             weight_decay=weight_decay,
             **kwargs
         )
-        """
-        TODO.
 
-        Consider the additional required parameters and fill the body\
-        accordingly.
-        """
+        self.c = torch.zeros(*connection.post.shape, *connection.pre.shape)
+        self.tau_c = kwargs.get('tau_c', 0.1)
 
-    def update(self, **kwargs) -> None:
-        """
-        TODO.
+    def update(self, dopamin: float, **kwargs) -> None:
+        pre = self.connection.pre
+        post = self.connection.post
+        dt = pre.dt
+        
+        spikes_delta = (post.s.view(*post.shape, 1).long() @ pre.s.view(1, *pre.shape).long())
+        dc = (-self.c / self.tau_c) * dt + (stdp(dt, self.lr[0], self.lr[1], pre, post) * spikes_delta)
+        self.c += dc
 
-        Implement the dynamics and updating rule. You might need to call the
-        parent method. Make sure to consider the reward value as a given keyword
-        argument.
-        """
-        pass
+        dw = self.c * dopamin
+        self.connection.weight += dw
+        self.connection.weight[self.connection.weight <= 0.01] = 0.05
+
+        super().update()
 
 
 class FlatRSTDP(LearningRule):
@@ -245,6 +265,7 @@ class FlatRSTDP(LearningRule):
         connection: AbstractConnection,
         lr: Optional[Union[float, Sequence[float]]] = None,
         weight_decay: float = 0.,
+        trace_window_steps: int = 100,
         **kwargs
     ) -> None:
         super().__init__(
@@ -253,19 +274,83 @@ class FlatRSTDP(LearningRule):
             weight_decay=weight_decay,
             **kwargs
         )
-        """
-        TODO.
+        self.c = torch.zeros(*connection.post.shape, *connection.pre.shape)
+        self.tau_c = kwargs.get('tau_c', 0.1)
+        
+        self.trace_window_steps = trace_window_steps
+        self.pre_traces = torch.zeros(trace_window_steps, *connection.pre.shape)
+        self.pre_traces_index = 0
+        self.post_traces = torch.zeros(trace_window_steps, *connection.post.shape)
+        self.post_traces_index = 0
 
-        Consider the additional required parameters and fill the body\
-        accordingly.
-        """
+    def add_pre_trace(self, trace):
+        self.pre_traces_index = self.pre_traces_index % self.trace_window_steps
+        self.pre_traces[self.pre_traces_index] = trace
+        self.pre_traces_index += 1
+    
+    def add_post_trace(self, trace):
+        self.post_traces_index = self.post_traces_index % self.trace_window_steps
+        self.post_traces[self.post_traces_index] = trace
+        self.post_traces_index += 1
 
-    def update(self, **kwargs) -> None:
-        """
-        TODO.
+    def update(self, dopamin: float, **kwargs) -> None:
+        pre = self.connection.pre
+        self.add_pre_trace(pre.s)
+        pre_traces = sum(self.pre_traces)
 
-        Implement the dynamics and updating rule. You might need to call the
-        parent method. Make sure to consider the reward value as a given keyword
-        argument.
-        """
-        pass
+        post = self.connection.post
+        self.add_post_trace(post.s)
+        post_traces = sum(self.post_traces)
+
+        dt = pre.dt
+        
+        spikes_delta = (post.s.view(*post.shape, 1).long() @ pre.s.view(1, *pre.shape).long())
+        dc = (-self.c / self.tau_c) * dt + (flat_stdp(dt, self.lr[0], self.lr[1], pre_traces, post_traces, pre.s, post.s) * spikes_delta)
+        self.c += dc
+
+        dw = self.c * dopamin
+        self.connection.weight += dw
+        self.connection.weight[self.connection.weight <= 0.01] = 0.05
+
+        super().update()
+
+
+class WinnerSTDP():
+    def __init__(self, pre: NeuralPopulation, posts: List[NeuralPopulation], features: torch.Tensor, lr: float) -> None:
+        self.pre = pre
+        self.posts = posts
+        self.features = features
+        self.lr = [lr, lr]
+    
+    def update(self, winners: List[Tuple[int, int]]) -> None:
+        pre = self.pre
+        posts = self.posts
+        for idx, winner in enumerate(winners):
+            y = winner[1]
+            x = winner[0]
+            y_length = len(self.features[idx])
+            x_length = len(self.features[idx][0])
+
+            pre_traces = pre.traces[y: y + y_length, x: x + x_length]
+            pre_spikes = pre.s[y: y + y_length, x: x + x_length]
+
+            post_trace = posts[idx].traces[winner[0], winner[1]]
+            post_spike = posts[idx].s[winner[0], winner[1]]
+
+            dw = -self.lr[0] * post_trace * pre_spikes + self.lr[1] * pre_traces * post_spike
+            dw[dw > 0] = self.lr[0]
+            dw[dw < 0] = -self.lr[0]
+            
+            self.features[idx] += dw
+            self.features.clamp_(0, 1)
+
+
+def stdp(dt: float, A_minus: float, A_plus: float, pre: NeuralPopulation, post: NeuralPopulation) -> torch.Tensor:
+    dw = ( -A_minus * post.traces.view(*post.shape, 1) @ pre.s.view(1, *pre.shape).float() + 
+           (A_plus * pre.traces.view(*pre.shape, 1) @ post.s.view(1, *post.shape).float()).transpose(0, 1) ) * dt
+    
+    return dw
+
+def flat_stdp(dt: float, A_minus: float, A_plus: float, pre_traces: torch.Tensor, post_traces: torch.Tensor, pre_s: torch.Tensor, post_s: torch.Tensor):
+    return ( -A_minus * post_traces.view(*post_traces.shape, 1) @ pre_s.view(1, *pre_s.shape).float() + 
+             (A_plus * pre_traces.view(*pre_traces.shape, 1) @ post_s.view(1, *post_s.shape).float()).transpose(0, 1) ) * dt

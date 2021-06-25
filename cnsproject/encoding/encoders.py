@@ -3,10 +3,10 @@ Module for encoding data into spike.
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, Callable
 
 import torch
-
+import numpy as np
 
 class AbstractEncoder(ABC):
     """
@@ -37,13 +37,14 @@ class AbstractEncoder(ABC):
     def __init__(
         self,
         time: int,
-        dt: Optional[float] = 1.0,
+        dt: Optional[float] = 0.001,
         device: Optional[str] = "cpu",
         **kwargs
     ) -> None:
         self.time = time
         self.dt = dt
         self.device = device
+        self.steps = int(time / dt)
 
     @abstractmethod
     def __call__(self, data: torch.Tensor) -> None:
@@ -74,7 +75,7 @@ class Time2FirstSpikeEncoder(AbstractEncoder):
     def __init__(
         self,
         time: int,
-        dt: Optional[float] = 1.0,
+        dt: Optional[float] = 0.001,
         device: Optional[str] = "cpu",
         **kwargs
     ) -> None:
@@ -84,20 +85,24 @@ class Time2FirstSpikeEncoder(AbstractEncoder):
             device=device,
             **kwargs
         )
-        """
-        TODO.
 
-        Add other attributes if needed and fill the body accordingly.
-        """
+    def __call__(self, min_val: int, max_val: int, data: torch.Tensor) -> torch.Tensor:
+        shape = data.shape
+        coded_data = torch.zeros(self.steps, *shape)
+        
+        data_scaled_flatten = [
+            int(min_max_scale(min_val, max_val, val) * self.steps) for val in data.flatten() ]
 
-    def __call__(self, data: torch.Tensor) -> None:
-        """
-        TODO.
+        for i in range(self.steps):
+            spikes = torch.tensor(
+                list(map(
+                    lambda x: 1 if x == self.steps - i else 0,
+                    data_scaled_flatten))
+            ).view(shape)
 
-        Implement the computation for coding the data. Return resulting tensor.
-        """
-        pass
+            coded_data[i] = spikes
 
+        return coded_data
 
 class PositionEncoder(AbstractEncoder):
     """
@@ -109,7 +114,8 @@ class PositionEncoder(AbstractEncoder):
     def __init__(
         self,
         time: int,
-        dt: Optional[float] = 1.0,
+        neurons_number: int,
+        dt: Optional[float] = 0.001,
         device: Optional[str] = "cpu",
         **kwargs
     ) -> None:
@@ -119,19 +125,23 @@ class PositionEncoder(AbstractEncoder):
             device=device,
             **kwargs
         )
-        """
-        TODO.
 
-        Add other attributes if needed and fill the body accordingly.
-        """
+        self.neurons_number = neurons_number
 
-    def __call__(self, data: torch.Tensor) -> None:
-        """
-        TODO.
-
-        Implement the computation for coding the data. Return resulting tensor.
-        """
-        pass
+    def __call__(self, min_val: int, max_val: int, data: torch.Tensor) -> torch.Tensor:
+        neuron_distance = (max_val - min_val) / self.neurons_number
+        def make_gaussian_neuron(mu, sigma):
+            f = gaussian_pdf(mu, sigma)
+            return lambda x: (f(x) * -self.steps) / f(mu) + self.steps
+        
+        gaussian_neurons = [
+            make_gaussian_neuron(i * neuron_distance, neuron_distance) for i in range(self.neurons_number) ]
+        
+        return torch.tensor(
+            list(map(
+                lambda x: [f(x) for f in gaussian_neurons],
+                data.flatten()))
+        ).view(*data.shape, self.neurons_number)
 
 
 class PoissonEncoder(AbstractEncoder):
@@ -144,7 +154,8 @@ class PoissonEncoder(AbstractEncoder):
     def __init__(
         self,
         time: int,
-        dt: Optional[float] = 1.0,
+        max_spikes: int,
+        dt: Optional[float] = 0.001,
         device: Optional[str] = "cpu",
         **kwargs
     ) -> None:
@@ -154,16 +165,29 @@ class PoissonEncoder(AbstractEncoder):
             device=device,
             **kwargs
         )
-        """
-        TODO.
 
-        Add other attributes if needed and fill the body accordingly.
-        """
+        self.max_spikes = max_spikes
 
-    def __call__(self, data: torch.Tensor) -> None:
-        """
-        TODO.
+    def __call__(self, min_val: int, max_val: int, data: torch.Tensor) -> torch.Tensor:
+        shape = data.shape
+        coded_data = torch.zeros(self.steps, *shape)
+        data_flatten = data.flatten()
 
-        Implement the computation for coding the data. Return resulting tensor.
-        """
-        pass
+        for i in range(self.steps):
+            spikes = torch.tensor(
+                list(map(
+                    lambda x: 1 if np.random.rand() < (self.max_spikes / self.steps) * (x / max_val) else 0,
+                    data_flatten))
+            ).view(shape)
+
+            coded_data[i] = spikes
+        
+        return coded_data
+
+
+def min_max_scale(min_val: float, max_val: float, value: float) -> float:
+    return (value - min_val) / (max_val - min_val)
+
+
+def gaussian_pdf(mu: float, sigma: float) -> Callable[[float], float]:
+    return lambda x: 1 / (sigma * np.sqrt(2 * np.pi)) * np.exp( - (x - mu) ** 2 / (2 * sigma ** 2) )

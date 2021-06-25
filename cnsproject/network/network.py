@@ -2,7 +2,9 @@
 Module for spiking neural network construction and simulation.
 """
 
-from typing import Optional, Dict
+from typing import Optional, Dict, List
+from operator import add
+from functools import reduce
 
 import torch
 
@@ -63,7 +65,7 @@ class Network(torch.nn.Module):
 
     def __init__(
         self,
-        dt: float = 1.0,
+        dt: float = 0.001,
         learning: bool = True,
         reward: Optional[AbstractReward] = None,
         decision: Optional[AbstractDecision] = None,
@@ -82,8 +84,11 @@ class Network(torch.nn.Module):
         # Make sure that arguments of your reward and decision classes do not
         # share same names. Their arguments are passed to the network as its
         # keyword arguments.
-        self.reward = reward(**kwargs)
-        self.decision = decision(**kwargs)
+        if reward:
+            self.reward = reward(**kwargs)
+        
+        if decision:
+            self.decision = decision(**kwargs)
 
     def add_layer(self, layer: NeuralPopulation, name: str) -> None:
         """
@@ -131,8 +136,8 @@ class Network(torch.nn.Module):
         None
 
         """
-        self.connections[f"{pre}_to_{post}"] = connection
-        self.add_module(f"{pre}_to_{post}", connection)
+        self.connections[f"{pre}->{post}"] = connection
+        self.add_module(f"{pre}->{post}", connection)
 
         connection.train(self.learning)
         connection.dt = self.dt
@@ -156,9 +161,17 @@ class Network(torch.nn.Module):
         self.monitors[name] = monitor
         monitor.dt = self.dt
 
+    def get_connections(self, layer_name: str):
+        return list(map(
+            lambda c: (c[0].split('->')[0], c[1]),
+            filter(
+                lambda c: c[0].split('->')[1] == layer_name,
+                self.connections.items() )))
+
     def run(
         self,
         time: int,
+        currents: Dict[str, List[torch.Tensor]],
         inputs: Dict[str, torch.Tensor] = {},
         one_step: bool = False,
         **kwargs
@@ -185,6 +198,8 @@ class Network(torch.nn.Module):
         ----------
         time : int
             Simulation time.
+        currents: Dict[str, torch.Tensor]
+            Mapping input layer names to their input currents. 
         inputs : Dict[str, torch.Tensor], optional
             Mapping of input layer names to their input spike tensors. The\
             default is {}.
@@ -215,6 +230,28 @@ class Network(torch.nn.Module):
         clamps = kwargs.get("clamp", {})
         unclamps = kwargs.get("unclamp", {})
         masks = kwargs.get("masks", {})
+
+        steps = int(time / self.dt)
+        for i in range(steps):
+            effects = {}
+            for layer, population in self.layers.items():
+                connections = self.get_connections(layer)
+                all_effects = reduce(
+                    add, 
+                    map(
+                        lambda c: c[1].compute(self.layers[c[0]].s),
+                        connections),
+                    torch.zeros(population.shape))
+                
+                effects[layer] = all_effects
+            
+            for layer, population in self.layers.items():
+                population.forward(currents[layer][i], effects[layer])
+            
+            for monitor in self.monitors:
+                self.monitors[monitor].record()
+
+
 
     def reset_state_variables(self) -> None:
         """
